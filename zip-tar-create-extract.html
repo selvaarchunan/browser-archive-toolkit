@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Browser Archive Manager</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 1.5rem;
+      box-sizing: border-box;
+    }
+    .card {
+      background: #1e293b;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+      width: 100%;
+      max-width: 520px;
+    }
+    h2 { margin: 0 0 0.25rem 0; color: #38bdf8; }
+    .badge {
+      display: inline-block;
+      background: #059669;
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin-bottom: 1.25rem;
+      font-weight: 600;
+    }
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 0.75rem;
+      background: #334155;
+      color: #94a3b8;
+      border: 2px solid transparent;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      background: #0284c7;
+      color: #ffffff;
+      border-color: #38bdf8;
+    }
+    .tab-pane {
+      display: none;
+    }
+    .tab-pane.active {
+      display: block;
+    }
+    .field { margin-bottom: 1.25rem; }
+    label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: #cbd5e1; font-weight: 500; }
+    input[type="file"], input[type="text"], select, .btn-action {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.75rem;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: #f8fafc;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+    .btn-action {
+      background: #0284c7;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 0.5rem;
+      transition: background 0.2s;
+    }
+    .btn-action:hover:not(:disabled) { background: #0369a1; }
+    .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+    #status { margin-top: 1rem; font-size: 0.9rem; line-height: 1.5; }
+    .file-list {
+      margin-top: 1rem;
+      max-height: 250px;
+      overflow-y: auto;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 0.5rem;
+    }
+    .file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0.6rem;
+      border-bottom: 1px solid #1e293b;
+      font-size: 0.85rem;
+    }
+    .file-item:last-child { border-bottom: none; }
+    .file-info {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-right: 1rem;
+    }
+    .download-link {
+      color: #38bdf8;
+      text-decoration: none;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .download-link:hover { text-decoration: underline; }
+    .download-all-btn {
+      display: block;
+      margin-top: 1rem;
+      text-align: center;
+      background: #10b981;
+      color: white;
+      text-decoration: none;
+      padding: 0.65rem 1rem;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .download-all-btn:hover { background: #059669; }
+  </style>
+
+  <!-- JSZip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- LibArchive -->
+  <script src="https://cdn.jsdelivr.net/npm/libarchive.js@1.3.0/dist/libarchive.js"></script>
+</head>
+<body>
+
+<div class="card">
+  <h2>Archive Toolkit</h2>
+  <span class="badge">100% Client-Side • No Uploads</span>
+
+  <div class="tabs">
+    <button type="button" class="tab-btn active" data-target="extractPane">Extract Archive</button>
+    <button type="button" class="tab-btn" data-target="createPane">Create Archive</button>
+  </div>
+
+  <!-- 1. EXTRACT PANE -->
+  <div id="extractPane" class="tab-pane active">
+    <div class="field">
+      <label for="archiveInput">Select Archive (.zip, .rar, .7z, .tar, .tar.gz)</label>
+      <input type="file" id="archiveInput" accept=".zip,.rar,.7z,.tar,.tar.gz,.tgz">
+    </div>
+    <button type="button" class="btn-action" id="extractBtn">Extract All Contents</button>
+  </div>
+
+  <!-- 2. CREATE PANE -->
+  <div id="createPane" class="tab-pane">
+    <div class="field">
+      <label for="filesToCompress">Select Multiple Files to Pack</label>
+      <input type="file" id="filesToCompress" multiple>
+    </div>
+    <div class="field">
+      <label for="archiveFormat">Target Format</label>
+      <select id="archiveFormat">
+        <option value="zip" selected>.ZIP (Deflate Compressed)</option>
+        <option value="tar">.TAR (Tape Archive)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="archiveName">Archive Name</label>
+      <input type="text" id="archiveName" value="packed_files">
+    </div>
+    <button type="button" class="btn-action" id="createBtn">Pack & Download</button>
+  </div>
+
+  <div id="status"></div>
+  <div id="resultContainer"></div>
+</div>
+
+<script>
+  // --- ROBUST TAB SWITCHING ---
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  const tabPanes = document.querySelectorAll('.tab-pane');
+  const statusDiv = document.getElementById('status');
+  const resultContainer = document.getElementById('resultContainer');
+
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      
+      tabButtons.forEach(b => b.classList.remove('active'));
+      tabPanes.forEach(p => p.classList.remove('active'));
+
+      btn.classList.add('active');
+      const targetId = btn.getAttribute('data-target');
+      document.getElementById(targetId).classList.add('active');
+
+      statusDiv.innerHTML = '';
+      resultContainer.innerHTML = '';
+    });
+  });
+
+  function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  // Lazy initialize LibArchive only when non-zip files are loaded
+  let libArchiveInitialized = false;
+  function initLibArchive() {
+    if (!libArchiveInitialized && window.Archive) {
+      Archive.init({
+        workerUrl: 'https://cdn.jsdelivr.net/npm/libarchive.js@1.3.0/dist/worker-bundle.js'
+      });
+      libArchiveInitialized = true;
+    }
+  }
+
+  // --- EXTRACT PROCESSOR ---
+  const extractBtn = document.getElementById('extractBtn');
+  const archiveInput = document.getElementById('archiveInput');
+
+  extractBtn.addEventListener('click', async () => {
+    const file = archiveInput.files[0];
+    if (!file) {
+      alert('Please choose an archive file first.');
+      return;
+    }
+
+    extractBtn.disabled = true;
+    statusDiv.innerHTML = 'Unpacking archive in memory...';
+    resultContainer.innerHTML = '';
+
+    const extractedFilesList = [];
+
+    try {
+      const fileName = file.name.toLowerCase();
+
+      if (fileName.endsWith('.zip')) {
+        const zip = await JSZip.loadAsync(file);
+        for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+          if (!zipEntry.dir) {
+            const blob = await zipEntry.async('blob');
+            extractedFilesList.push({
+              name: relativePath,
+              blob: blob,
+              size: blob.size
+            });
+          }
+        }
+      } else {
+        initLibArchive();
+        const archive = await Archive.open(file);
+        const extractedTree = await archive.extractFiles();
+
+        function walkTree(tree, prefix = '') {
+          for (const [name, entry] of Object.entries(tree)) {
+            if (entry instanceof File) {
+              extractedFilesList.push({
+                name: prefix + name,
+                blob: entry,
+                size: entry.size
+              });
+            } else if (typeof entry === 'object' && entry !== null) {
+              walkTree(entry, prefix + name + '/');
+            }
+          }
+        }
+        walkTree(extractedTree);
+      }
+
+      if (extractedFilesList.length === 0) {
+        statusDiv.innerHTML = '<span style="color: #f87171;">The archive is empty or could not be read.</span>';
+        return;
+      }
+
+      statusDiv.innerHTML = `<span style="color: #4ade80;">Extracted ${extractedFilesList.length} file(s):</span>`;
+
+      const listDiv = document.createElement('div');
+      listDiv.className = 'file-list';
+
+      extractedFilesList.forEach(item => {
+        const url = URL.createObjectURL(item.blob);
+        const itemRow = document.createElement('div');
+        itemRow.className = 'file-item';
+        itemRow.innerHTML = `
+          <div class="file-info" title="${item.name}">${item.name} (${formatBytes(item.size)})</div>
+          <a class="download-link" href="${url}" download="${item.name.split('/').pop()}">Save</a>
+        `;
+        listDiv.appendChild(itemRow);
+      });
+
+      resultContainer.appendChild(listDiv);
+
+      const zipAll = new JSZip();
+      extractedFilesList.forEach(item => zipAll.file(item.name, item.blob));
+      const allBlob = await zipAll.generateAsync({ type: 'blob' });
+      const allUrl = URL.createObjectURL(allBlob);
+
+      const dlAllBtn = document.createElement('a');
+      dlAllBtn.className = 'download-all-btn';
+      dlAllBtn.href = allUrl;
+      dlAllBtn.download = `extracted_${file.name.replace(/\.[^/.]+$/, "")}.zip`;
+      dlAllBtn.textContent = 'Download All as .ZIP';
+      resultContainer.appendChild(dlAllBtn);
+
+    } catch (err) {
+      console.error(err);
+      statusDiv.innerHTML = `<span style="color: #f87171;">Extraction failed: ${err.message || 'Corrupted or unsupported archive.'}</span>`;
+    } finally {
+      extractBtn.disabled = false;
+    }
+  });
+
+  // --- TAR BUILDER ---
+  function buildTar(files) {
+    const chunks = [];
+    for (const item of files) {
+      const header = new Uint8Array(512);
+      const name = item.name;
+      const size = item.data.byteLength;
+      
+      for (let i = 0; i < Math.min(name.length, 100); i++) header[i] = name.charCodeAt(i);
+      header.set([48,48,48,48,54,52,52,0], 100);
+      header.set([48,48,48,48,48,48,48,0], 108);
+      header.set([48,48,48,48,48,48,48,0], 116);
+      
+      const sizeOctal = size.toString(8).padStart(11, '0') + ' ';
+      for (let i = 0; i < 12; i++) header[124 + i] = sizeOctal.charCodeAt(i);
+      
+      const mtimeOctal = Math.floor(Date.now() / 1000).toString(8).padStart(11, '0') + ' ';
+      for (let i = 0; i < 12; i++) header[136 + i] = mtimeOctal.charCodeAt(i);
+      header[156] = 48;
+      header.set([117,115,116,97,114,32,32,0], 257);
+      
+      header.set([32,32,32,32,32,32,32,32], 148);
+      let sum = 0;
+      for (let i = 0; i < 512; i++) sum += header[i];
+      const sumOctal = sum.toString(8).padStart(6, '0') + '\0 ';
+      for (let i = 0; i < 8; i++) header[148 + i] = sumOctal.charCodeAt(i);
+
+      chunks.push(header);
+      chunks.push(item.data);
+
+      const rem = size % 512;
+      if (rem !== 0) chunks.push(new Uint8Array(512 - rem));
+    }
+    chunks.push(new Uint8Array(1024));
+    return new Blob(chunks, { type: 'application/x-tar' });
+  }
+
+  // --- CREATE PROCESSOR ---
+  const createBtn = document.getElementById('createBtn');
+  const filesToCompress = document.getElementById('filesToCompress');
+  const archiveFormat = document.getElementById('archiveFormat');
+  const archiveNameInput = document.getElementById('archiveName');
+
+  createBtn.addEventListener('click', async () => {
+    const files = filesToCompress.files;
+    if (!files || files.length === 0) {
+      alert('Please select at least one file to package.');
+      return;
+    }
+
+    createBtn.disabled = true;
+    statusDiv.innerHTML = 'Packing files into archive...';
+    resultContainer.innerHTML = '';
+
+    const format = archiveFormat.value;
+    const baseName = archiveNameInput.value.trim() || 'packed_files';
+
+    try {
+      let finalBlob = null;
+      let outName = '';
+
+      if (format === 'zip') {
+        const zip = new JSZip();
+        for (let i = 0; i < files.length; i++) {
+          zip.file(files[i].name, files[i]);
+        }
+        finalBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+        outName = `${baseName}.zip`;
+      } else if (format === 'tar') {
+        const payload = [];
+        for (let i = 0; i < files.length; i++) {
+          const buf = await files[i].arrayBuffer();
+          payload.push({ name: files[i].name, data: new Uint8Array(buf) });
+        }
+        finalBlob = buildTar(payload);
+        outName = `${baseName}.tar`;
+      }
+
+      const dlUrl = URL.createObjectURL(finalBlob);
+      statusDiv.innerHTML = `<div style="color: #4ade80;">Archive created! (${formatBytes(finalBlob.size)})</div>`;
+      
+      const dlBtn = document.createElement('a');
+      dlBtn.className = 'download-all-btn';
+      dlBtn.href = dlUrl;
+      dlBtn.download = outName;
+      dlBtn.textContent = `Download ${outName}`;
+      resultContainer.appendChild(dlBtn);
+
+    } catch (err) {
+      console.error(err);
+      statusDiv.innerHTML = `<span style="color: #f87171;">Failed to create archive: ${err.message}</span>`;
+    } finally {
+      createBtn.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>
